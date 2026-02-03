@@ -14,10 +14,13 @@ export function Layout() {
   return (
     <div className="min-h-screen flex flex-col bg-[rgb(var(--surface))]">
       <header className="bg-[rgb(var(--header-bg))] border-b border-[rgb(var(--header-border))] flex items-center justify-between px-4 py-2.5 shadow-sm">
-        <Link to="/" className="flex items-center gap-2 font-semibold text-lg text-white tracking-tight">
-          <span className="w-7 h-7 rounded-lg bg-cyan-500/20 flex items-center justify-center text-cyan-400 text-sm" aria-hidden>◇</span>
-          ChatKit 工作台
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link to="/" className="flex items-center gap-2 font-semibold text-lg text-white tracking-tight">
+            <span className="w-7 h-7 rounded-lg bg-cyan-500/20 flex items-center justify-center text-cyan-400 text-sm" aria-hidden>◇</span>
+            ChatKit 工作台
+          </Link>
+          <Link to="/doc" className="text-slate-300 hover:text-white text-sm transition-colors">开发文档</Link>
+        </div>
         <div className="flex items-center gap-3">
           <Link to="/me" className="text-slate-300 hover:text-white text-sm transition-colors">我的</Link>
           {user_id && (

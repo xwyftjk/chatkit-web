@@ -6,6 +6,7 @@ import { Login } from './pages/Login.js';
 import { Register } from './pages/Register.js';
 import { Workspace } from './pages/Workspace.js';
 import { Me } from './pages/Me.js';
+import { Doc } from './pages/Doc.js';
 import { useAuthStore } from './stores/auth.js';
 
 export default function App() {
@@ -38,6 +39,7 @@ export default function App() {
         >
           <Route index element={<Workspace />} />
           <Route path="me" element={<Me />} />
+          <Route path="doc" element={<Doc />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
