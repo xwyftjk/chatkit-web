@@ -568,8 +568,9 @@ export function Workspace() {
   const groupedSessions = useMemo(() => groupSessionsByDate(sessions), [sessions]);
 
   return (
-    <div className="h-[calc(100vh-3rem)] flex bg-[rgb(var(--surface))]">
-      <aside className="w-64 border-r border-slate-200/80 bg-white flex flex-col overflow-hidden shadow-sm">
+    <div className="h-[calc(100vh-3rem)] flex justify-center bg-[rgb(var(--surface))]">
+      <div className="w-full max-w-7xl h-full flex bg-[rgb(var(--surface))] min-w-0">
+      <aside className="w-64 shrink-0 border-r border-slate-200/80 bg-white flex flex-col overflow-hidden shadow-sm">
         {/* 会话列表 2/3 */}
         <div className="flex-[2] min-h-0 flex flex-col">
           <button
@@ -783,7 +784,7 @@ export function Workspace() {
           </button>
         </div>
       </section>
-      <aside className="w-72 border-l border-slate-200/80 bg-white flex flex-col overflow-hidden shadow-sm">
+      <aside className="w-72 shrink-0 border-l border-slate-200/80 bg-white flex flex-col overflow-hidden shadow-sm">
         <div className="pl-3 pr-2 py-2.5 border-b border-cyan-200/80 bg-cyan-50/70 border-l-2 border-l-cyan-500 flex items-center justify-between shrink-0">
           <span className="text-xs font-semibold text-slate-700 flex items-center gap-2">
             <svg className="w-4 h-4 text-cyan-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
@@ -1027,6 +1028,7 @@ export function Workspace() {
           )}
         </div>
       </aside>
+      </div>
       {/* 从 AI 消息添加笔记弹窗 */}
       {addNoteFromMessage && (
         <div
