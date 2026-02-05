@@ -76,11 +76,16 @@ export function createEventSource(
             try {
               const data = JSON.parse(raw) as { type?: string; [k: string]: unknown };
               onMessage(data);
-              if (typeof window !== 'undefined' && import.meta.env.DEV && data.type !== undefined) {
-                console.log('[Events] 收到', data.type, data.type === 'TEXT_MESSAGE_CHUNK' ? '(delta)' : '');
+              if (typeof window !== 'undefined' && data.type !== undefined) {
+                const preview = data.type === 'TEXT_MESSAGE_CHUNK' && typeof (data as { delta?: string }).delta === 'string'
+                  ? ` delta=${((data as { delta: string }).delta).length}ch`
+                  : '';
+                console.log('[Events] 收到', data.type, preview);
               }
-            } catch {
-              // skip non-JSON
+            } catch (e) {
+              if (typeof window !== 'undefined') {
+                console.warn('[Events] 解析 data 失败', raw?.slice(0, 80), e);
+              }
             }
           }
         }

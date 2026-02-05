@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useAuthStore } from '../stores/auth.js';
 import { useConversationStore } from '../stores/conversation.js';
 import { useInboxNotifyStore } from '../stores/inboxNotify.js';
@@ -108,11 +108,13 @@ export function Workspace() {
     setCurrentSessionId,
     messages,
     setMessages,
+    prependMessages,
     hasMoreMessages,
     totalInSession,
     appendMessage,
     streamingContent,
     setStreamingContent,
+    setOnBeforeStreamEnd,
     appendStreamingContent,
   } = useConversationStore();
 
@@ -138,6 +140,14 @@ export function Workspace() {
   const [docsTotal, setDocsTotal] = useState<number | null>(null);
   const [deleteConfirmDocId, setDeleteConfirmDocId] = useState<string | null>(null);
   const docsFileInputRef = useRef<HTMLInputElement>(null);
+  /** 消息区域滚动容器：结束流式时保留滚动位置，不自动往上滚 */
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const scrollTopWhenStreamEndRef = useRef<number | null>(null);
+  /** 仅应用最新一次 getMessages 的结果，避免竞态覆盖刚追加的流式消息 */
+  const messagesFetchIdRef = useRef(0);
+  const [messagesLoadMoreLoading, setMessagesLoadMoreLoading] = useState(false);
+  /** 向上加载更多后恢复滚动位置：prepend 前保存的 scrollHeight */
+  const pendingScrollHeightBeforeRef = useRef<number | null>(null);
   const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
   const [inboxTotal, setInboxTotal] = useState(0);
   const [inboxLoading, setInboxLoading] = useState(false);
@@ -174,6 +184,13 @@ export function Workspace() {
   useEvents(sessionId ?? INBOX_ONLY_SESSION_ID, undefined, onInboxNew);
 
   useEffect(() => {
+    setOnBeforeStreamEnd(() => {
+      scrollTopWhenStreamEndRef.current = messagesContainerRef.current?.scrollTop ?? 0;
+    });
+    return () => setOnBeforeStreamEnd(null);
+  }, [setOnBeforeStreamEnd]);
+
+  useEffect(() => {
     clearInboxNew();
     setLatestNewMessages([]);
   }, [clearInboxNew]);
@@ -195,19 +212,57 @@ export function Workspace() {
       setMessagesLoading(false);
       return;
     }
+    const fetchId = ++messagesFetchIdRef.current;
     setMessagesLoading(true);
     getMessages(currentSessionId, 20, 0)
       .then((r) => {
+        if (messagesFetchIdRef.current !== fetchId) return;
         setMessages(r.messages, r.has_more, r.total_in_session);
       })
       .catch((err) => {
+        if (messagesFetchIdRef.current !== fetchId) return;
         console.error('[Workspace] getMessages failed', err);
         setMessages([], false, 0);
       })
       .finally(() => {
+        if (messagesFetchIdRef.current !== fetchId) return;
         setMessagesLoading(false);
       });
   }, [currentSessionId, setMessages]);
+
+  /** 向上滚动时加载更早的 20 条消息，并保持滚动位置不跳动 */
+  const loadMoreMessages = useCallback(() => {
+    if (messagesLoadMoreLoading || !hasMoreMessages || !currentSessionId || streamingContent != null) return;
+    const currentLength = useConversationStore.getState().messages.length;
+    if (currentLength === 0) return;
+    setMessagesLoadMoreLoading(true);
+    const el = messagesContainerRef.current;
+    const scrollHeightBefore = el?.scrollHeight ?? 0;
+    getMessages(currentSessionId, 20, currentLength)
+      .then((r) => {
+        if (r.messages.length === 0) return;
+        prependMessages(r.messages, r.has_more);
+        pendingScrollHeightBeforeRef.current = scrollHeightBefore;
+      })
+      .catch((err) => console.error('[Workspace] loadMoreMessages failed', err))
+      .finally(() => setMessagesLoadMoreLoading(false));
+  }, [currentSessionId, hasMoreMessages, messagesLoadMoreLoading, streamingContent, prependMessages]);
+
+  useLayoutEffect(() => {
+    const before = pendingScrollHeightBeforeRef.current;
+    if (before === null) return;
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    pendingScrollHeightBeforeRef.current = null;
+    const after = el.scrollHeight;
+    el.scrollTop += after - before;
+  }, [messages]);
+
+  const handleMessagesScroll = useCallback(() => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    if (el.scrollTop < 80) loadMoreMessages();
+  }, [loadMoreMessages]);
 
   useEffect(() => {
     if (!sessionId) setExpandedMessageMemories(new Set());
@@ -380,14 +435,14 @@ export function Workspace() {
           runId: crypto.randomUUID(),
         },
       });
-      console.log('[Workspace] POST /agent response', res.status, res.headers.get('content-type'));
+      const contentType = res.headers.get('content-type') ?? '';
+      console.log('[Workspace] POST /agent response', res.status, contentType, contentType.includes('text/event-stream') ? '(SSE 从 POST 读)' : '(JSON，依赖 GET /events)');
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({})) as { message?: string };
         throw new Error(err.message || res.statusText || `请求失败 ${res.status}`);
       }
 
-      const contentType = res.headers.get('content-type') ?? '';
       if (contentType.includes('text/event-stream')) {
         console.log('[Workspace] 响应为 SSE 流，从 POST 响应体读取');
         await consumeAgentStream(
@@ -423,6 +478,16 @@ export function Workspace() {
       setSending(false);
     }
   }, [input, user_id, sessionId, messages, appendMessage, setStreamingContent, appendStreamingContent]);
+
+  // 流式结束时恢复滚动位置，不自动往上滚
+  useLayoutEffect(() => {
+    if (streamingContent !== null) return;
+    const saved = scrollTopWhenStreamEndRef.current;
+    if (saved === null) return;
+    scrollTopWhenStreamEndRef.current = null;
+    const el = messagesContainerRef.current;
+    if (el) el.scrollTop = saved;
+  }, [streamingContent]);
 
   const handleRemember = useCallback(
     async (m: Message) => {
@@ -568,8 +633,9 @@ export function Workspace() {
   const groupedSessions = useMemo(() => groupSessionsByDate(sessions), [sessions]);
 
   return (
-    <div className="h-[calc(100vh-3rem)] flex bg-[rgb(var(--surface))]">
-      <aside className="w-64 border-r border-slate-200/80 bg-white flex flex-col overflow-hidden shadow-sm">
+    <div className="h-[calc(100vh-3rem)] flex justify-center bg-[rgb(var(--surface))]">
+      <div className="w-full max-w-7xl h-full flex bg-[rgb(var(--surface))] min-w-0">
+      <aside className="w-64 shrink-0 border-r border-slate-200/80 bg-white flex flex-col overflow-hidden shadow-sm">
         {/* 会话列表 2/3 */}
         <div className="flex-[2] min-h-0 flex flex-col">
           <button
@@ -659,8 +725,12 @@ export function Workspace() {
           </ul>
         </div>
       </aside>
-      <section className="flex-1 flex flex-col min-w-0 bg-[rgb(var(--surface))]">
-        <div className="flex-1 overflow-auto p-6 space-y-4">
+      <section className="flex-1 flex flex-col min-w-0 min-h-0 bg-[rgb(var(--surface))]">
+        <div
+          ref={messagesContainerRef}
+          className="flex-1 min-h-0 overflow-auto p-6 space-y-4"
+          onScroll={handleMessagesScroll}
+        >
           {messagesLoading && (
             <div className="flex flex-col items-center justify-center py-12 text-slate-500 text-sm">
               <span className="inline-block w-6 h-6 border-2 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin mb-2" aria-hidden />
@@ -674,6 +744,12 @@ export function Workspace() {
               </div>
               <p className="text-slate-600 font-medium mb-1">有什么可以帮您？</p>
               <p className="text-slate-400 text-sm">在下方输入您的问题或想法，我会随时为您效劳。</p>
+            </div>
+          )}
+          {messagesLoadMoreLoading && (
+            <div className="flex justify-center py-2 text-slate-400 text-sm">
+              <span className="inline-block w-4 h-4 border-2 border-slate-300 border-t-slate-500 rounded-full animate-spin mr-2" aria-hidden />
+              加载更早的消息…
             </div>
           )}
           {!messagesLoading && messages.map((m: Message) => {
@@ -783,7 +859,7 @@ export function Workspace() {
           </button>
         </div>
       </section>
-      <aside className="w-72 border-l border-slate-200/80 bg-white flex flex-col overflow-hidden shadow-sm">
+      <aside className="w-72 shrink-0 border-l border-slate-200/80 bg-white flex flex-col overflow-hidden shadow-sm">
         <div className="pl-3 pr-2 py-2.5 border-b border-cyan-200/80 bg-cyan-50/70 border-l-2 border-l-cyan-500 flex items-center justify-between shrink-0">
           <span className="text-xs font-semibold text-slate-700 flex items-center gap-2">
             <svg className="w-4 h-4 text-cyan-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
@@ -1027,6 +1103,7 @@ export function Workspace() {
           )}
         </div>
       </aside>
+      </div>
       {/* 从 AI 消息添加笔记弹窗 */}
       {addNoteFromMessage && (
         <div

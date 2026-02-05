@@ -34,7 +34,11 @@ export type AgentRunPayload = {
 export async function postAgentRun(payload: AgentRunPayload): Promise<Response> {
   return fetchApi('/agent', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      // Prefer SSE so postStream mode streams as text/event-stream (parseable); without this, backend may return application/vnd.ag-ui.event+proto and frontend would not consume the body.
+      'Accept': 'text/event-stream',
+    },
     body: JSON.stringify(payload),
   });
 }
@@ -64,14 +68,28 @@ export async function consumeAgentStream(
           const raw = line.slice(6).trim();
           if (!raw || raw === '[DONE]') continue;
           try {
-            const data = JSON.parse(raw) as { type?: string; content?: string; text?: string; event?: string; finish_reason?: string };
-            const content = data.content ?? data.text;
+            const data = JSON.parse(raw) as {
+              type?: string;
+              content?: string;
+              text?: string;
+              delta?: string;
+              event?: string;
+              finish_reason?: string;
+            };
+            // AG-UI format: TEXT_MESSAGE_CHUNK has delta; generic format has content/text
+            const content = data.delta ?? data.content ?? data.text;
             if (typeof content === 'string') {
               fullContent += content;
               onChunk(content);
             }
-            if (data.event === 'done' || data.finish_reason) {
-              if (fullContent) onDone(fullContent);
+            // AG-UI: RUN_FINISHED or TEXT_MESSAGE_END; generic: event done / finish_reason
+            const isDone =
+              data.type === 'RUN_FINISHED' ||
+              data.type === 'TEXT_MESSAGE_END' ||
+              data.event === 'done' ||
+              !!data.finish_reason;
+            if (isDone) {
+              onDone(fullContent);
               return;
             }
           } catch {
@@ -80,7 +98,7 @@ export async function consumeAgentStream(
         }
       }
     }
-    if (fullContent) onDone(fullContent);
+    onDone(fullContent);
   } finally {
     reader.releaseLock();
   }

@@ -52,6 +52,7 @@ export function useEvents(
     }
 
     sessionIdRef.current = sessionId;
+    console.log('[useEvents] 订阅 GET /events', { sessionId });
     const appendStreamingContent = useConversationStore.getState().appendStreamingContent;
     const appendMessage = useConversationStore.getState().appendMessage;
     const setStreamingContent = useConversationStore.getState().setStreamingContent;
@@ -78,16 +79,21 @@ export function useEvents(
           return;
         }
         if (d.type === 'RUN_FINISHED' || d.event === 'done' || d.finish_reason) {
-          const fullContent = useConversationStore.getState().streamingContent;
-          if (fullContent) {
-            appendMessage({
-              message_id: crypto.randomUUID(),
-              role: 'assistant',
-              content: fullContent,
-              timestamp: new Date().toISOString(),
-            });
-            setStreamingContent(null);
-          }
+          const fromStore = useConversationStore.getState().streamingContent ?? '';
+          const fromEvent = typeof (d as { content?: string; text?: string; message?: string }).content === 'string'
+            ? (d as { content: string }).content
+            : typeof (d as { text?: string }).text === 'string'
+              ? (d as { text: string }).text
+              : '';
+          const fullContent = fromEvent || fromStore;
+          console.log('[useEvents] RUN_FINISHED/done', { fromStoreLen: fromStore.length, fromEventLen: fromEvent.length, fullContentLen: fullContent.length });
+          appendMessage({
+            message_id: crypto.randomUUID(),
+            role: 'assistant',
+            content: fullContent,
+            timestamp: new Date().toISOString(),
+          });
+          setStreamingContent(null);
         }
       },
       () => {}

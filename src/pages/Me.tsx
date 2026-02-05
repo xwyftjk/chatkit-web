@@ -227,7 +227,7 @@ function formatMemoryTime(iso: string | undefined): string {
   }
 }
 
-/** 事实时间范围显示（valid_from ~ valid_to） */
+/** 有效时间范围显示（valid_from ~ valid_to） */
 function formatFactTimeRange(validFrom: string | undefined, validTo: string | undefined | null): string {
   const from = validFrom?.trim();
   const to = validTo?.trim() || '';
@@ -483,7 +483,7 @@ export function Me() {
   const [searchQuery, setSearchQuery] = useState('');
   const [memoryTypeFilter, setMemoryTypeFilter] = useState<MemoryType | ''>('');
   const [memoryPage, setMemoryPage] = useState(1);
-  /** 双时效本地筛选（可选）：记忆时间 = created_at 区间，事实时间 = valid_from/valid_to 区间 */
+  /** 双时效本地筛选（可选）：记忆时间 = created_at 区间，有效时间 = valid_from/valid_to 区间 */
   const [createdAfter, setCreatedAfter] = useState('');
   const [createdBefore, setCreatedBefore] = useState('');
   const [factFrom, setFactFrom] = useState('');
@@ -670,7 +670,7 @@ export function Me() {
       .finally(() => setConceptLoading(false));
   }, [user_id, meTab, conceptQuery, conceptEntityType, conceptCreatedAfter, conceptCreatedBefore, conceptFactFrom, conceptFactTo]);
 
-  /** 概念星图时间轴范围：从当前 raw 实体计算（记录时间=transaction_time，概念时间=valid_from/valid_to） */
+  /** 概念星图时间轴范围：从当前 raw 实体计算（记录时间=transaction_time，有效时间=valid_from/valid_to） */
   const {
     conceptCreatedExtentMin,
     conceptCreatedExtentMax,
@@ -1059,7 +1059,7 @@ export function Me() {
             />
             {factAxisHidden ? (
               <div className="flex items-center gap-3 text-sm">
-                <span className="text-gray-600 text-sm w-14 shrink-0">事实时间</span>
+                <span className="text-gray-600 text-sm w-14 shrink-0">有效时间</span>
                 <span className="text-gray-500">所有事实持续有效</span>
               </div>
             ) : (
@@ -1068,7 +1068,7 @@ export function Me() {
                 extentMax={factExtentMax}
                 valueStart={factValueStart}
                 valueEnd={factValueEnd}
-                label="事实时间"
+                label="有效时间"
                 onDragStart={() => timeFilterRef.current?.classList.add('time-filter-dragging')}
                 onDragEnd={() => timeFilterRef.current?.classList.remove('time-filter-dragging')}
                 onChange={(start, end) => {
@@ -1127,7 +1127,7 @@ export function Me() {
                             : '—'}
                         </span>
                         <span className="text-gray-500">
-                          事实时间：{formatFactTimeRange(m.valid_from, m.valid_to ?? undefined)}
+                          有效时间：{formatFactTimeRange(m.valid_from, m.valid_to ?? undefined)}
                         </span>
                       </div>
                       <div className="absolute top-1/2 right-0 -translate-y-1/2 flex items-center gap-2 shrink-0">
@@ -1190,7 +1190,7 @@ export function Me() {
                                     )}
                                     <span>{formatMemoryTime(r.created_at)}</span>
                                     {(r.valid_from != null || r.valid_to != null) && (
-                                      <span>事实时间：{formatFactTimeRange(r.valid_from ?? undefined, r.valid_to ?? undefined)}</span>
+                                      <span>有效时间：{formatFactTimeRange(r.valid_from ?? undefined, r.valid_to ?? undefined)}</span>
                                     )}
                                   </div>
                                 </div>
@@ -1224,7 +1224,7 @@ export function Me() {
                                                 )}
                                                 <span>{formatMemoryTime(r2.created_at)}</span>
                                                 {(r2.valid_from != null || r2.valid_to != null) && (
-                                                  <span>事实时间：{formatFactTimeRange(r2.valid_from ?? undefined, r2.valid_to ?? undefined)}</span>
+                                                  <span>有效时间：{formatFactTimeRange(r2.valid_from ?? undefined, r2.valid_to ?? undefined)}</span>
                                                 )}
                                               </div>
                                             </div>
@@ -1340,7 +1340,7 @@ export function Me() {
                 />
                 {conceptFactAxisHidden ? (
                   <div className="flex items-center gap-3 text-sm">
-                    <span className="text-gray-600 text-sm w-14 shrink-0">概念时间</span>
+                    <span className="text-gray-600 text-sm w-14 shrink-0">有效时间</span>
                     <span className="text-gray-500">所有概念持续有效</span>
                   </div>
                 ) : (
@@ -1349,7 +1349,7 @@ export function Me() {
                     extentMax={conceptFactExtentMax}
                     valueStart={conceptFactValueStart}
                     valueEnd={conceptFactValueEnd}
-                    label="概念时间"
+                    label="有效时间"
                     onDragStart={() => conceptTimeFilterRef.current?.classList.add('time-filter-dragging')}
                     onDragEnd={() => conceptTimeFilterRef.current?.classList.remove('time-filter-dragging')}
                     onChange={(start, end) => {
@@ -1432,7 +1432,7 @@ export function Me() {
                               </span>
                               <span className="shrink-0 text-gray-400 text-xs whitespace-nowrap">
                                 记录时间：{formatMemoryTime(e.transaction_time)}
-                                {e.valid_from && ` · 概念时间：${formatFactTimeRange(e.valid_from, e.valid_to ?? undefined)}`}
+                                {e.valid_from && ` · 有效时间：${formatFactTimeRange(e.valid_from, e.valid_to ?? undefined)}`}
                               </span>
                             </li>
                           ))}
