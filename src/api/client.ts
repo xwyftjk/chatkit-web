@@ -41,7 +41,7 @@ export async function refreshAccessToken(): Promise<boolean> {
         body: JSON.stringify({ refresh_token: refresh }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
+        await res.json().catch(() => ({}));
         if (res.status === 401) {
           clearTokens();
           window.dispatchEvent(new Event('auth:logout'));
