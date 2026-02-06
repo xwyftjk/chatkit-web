@@ -38,6 +38,7 @@ export function LongMemEval() {
   // Reports
   const [reports, setReports] = useState<Report[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
+
   const [selectedReport, setSelectedReport] = useState<ReportDetail | null>(null);
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   
@@ -361,6 +362,9 @@ export function LongMemEval() {
             }`}>
               状态: {runStatus === 'running' ? '运行中' : runStatus === 'completed' ? '完成' : runStatus === 'failed' ? '失败' : '已停止'}
               {runId && <span className="block text-xs mt-1 opacity-70">ID: {runId}</span>}
+              {runStatus === 'failed' && (
+                <span className="block text-xs mt-1 opacity-90">失败时也会生成报告，请点击下方「刷新」查看。</span>
+              )}
             </div>
           )}
 
@@ -550,6 +554,20 @@ export function LongMemEval() {
                   <div className="text-xs text-slate-500">
                     <p>生成时间: {selectedReport.json.metadata.generated_at}</p>
                     <p>Git Tag: {selectedReport.json.metadata.git_tag}</p>
+                  </div>
+                )}
+
+                {selectedReport.json.metadata?.run_log && (
+                  <div className="mt-4 border-t border-slate-200 pt-4">
+                    <details className="group">
+                      <summary className="cursor-pointer text-sm font-medium text-slate-700 list-none flex items-center gap-2">
+                        <span className="group-open:rotate-90 transition-transform">▶</span>
+                        进一步分析（测试过程终端日志）
+                      </summary>
+                      <pre className="mt-2 p-3 bg-slate-900 text-slate-300 text-xs font-mono rounded-lg overflow-x-auto overflow-y-auto max-h-64 whitespace-pre-wrap break-all">
+                        {selectedReport.json.metadata.run_log}
+                      </pre>
+                    </details>
                   </div>
                 )}
               </div>

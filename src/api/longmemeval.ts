@@ -67,6 +67,8 @@ export interface ReportDetail {
       generated_at: string;
       git_tag: string;
       config_type: string;
+      /** Terminal output from the test run (when run via server). */
+      run_log?: string;
     };
   };
   markdown?: string;
@@ -162,11 +164,13 @@ export function subscribeToLogs(
   };
 }
 
+const noStore = { cache: 'no-store' as RequestCache };
+
 /**
- * List all reports
+ * List all reports (never use browser cache)
  */
 export async function listReports(): Promise<{ reports: Report[] }> {
-  const response = await fetch(`${getBaseUrl()}/reports`);
+  const response = await fetch(`${getBaseUrl()}/reports?_t=${Date.now()}`, noStore);
   if (!response.ok) {
     throw new Error('Failed to list reports');
   }
@@ -177,7 +181,7 @@ export async function listReports(): Promise<{ reports: Report[] }> {
  * Get a specific report
  */
 export async function getReport(id: string): Promise<ReportDetail> {
-  const response = await fetch(`${getBaseUrl()}/reports/${id}`);
+  const response = await fetch(`${getBaseUrl()}/reports/${id}?_t=${Date.now()}`, noStore);
   if (!response.ok) {
     throw new Error('Report not found');
   }
