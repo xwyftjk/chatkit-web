@@ -5,7 +5,7 @@
  */
 
 import { spawn, type Subprocess } from 'bun';
-import { readdir, readFile, stat } from 'fs/promises';
+import { readdir, readFile, stat, writeFile } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -16,23 +16,23 @@ const RUNNER_DIR = join(__dirname, 'runner');
 
 const PORT = parseInt(process.env.LONGMEMEVAL_PORT || '26600', 10);
 
-// Auto-detect service URL (localhost or Docker container)
+// Auto-detect service URL (env > localhost > docker inspect > Docker network hostname)
 async function detectServiceUrl(
   envVar: string | undefined,
   containerName: string,
   port: number,
-  defaultHost: string = 'localhost'
+  defaultHost?: string
 ): Promise<string> {
-  // Check environment variable first
+  // 1. Environment variable (use when running in Docker with explicit URLs)
   if (envVar) return envVar;
-  
-  // Try localhost first
+
+  // 2. Try localhost (works when services run on host)
   try {
     const resp = await fetch(`http://localhost:${port}/health`, { signal: AbortSignal.timeout(1000) });
     if (resp.ok) return `http://localhost:${port}`;
   } catch {}
-  
-  // Try to get Docker container IP
+
+  // 3. Try Docker container IP (when docker CLI is available, e.g. host)
   try {
     const proc = Bun.spawn(['docker', 'inspect', containerName, '--format', '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}']);
     const output = await new Response(proc.stdout).text();
@@ -41,9 +41,10 @@ async function detectServiceUrl(
       return `http://${ip}:${port}`;
     }
   } catch {}
-  
-  // Fallback
-  return `http://${defaultHost}:${port}`;
+
+  // 4. Fallback: use container name so that when we run inside same Docker network it resolves
+  const host = defaultHost ?? containerName;
+  return `http://${host}:${port}`;
 }
 
 // Service URLs (will be initialized on startup)
@@ -171,7 +172,8 @@ async function startTestRun(config: RunConfig): Promise<string> {
   
   const runId = generateRunId();
   
-  // Build command arguments
+  // Build command arguments (runner must write to same REPORTS_DIR we read in listReports)
+  console.log(`[startRun] output-dir for runner: ${REPORTS_DIR}`);
   const args: string[] = [
     'run', 'src/index.ts',
     '--dataset', join(DATA_DIR, 'longmemeval_s_cleaned.json'),
@@ -275,16 +277,55 @@ async function startTestRun(config: RunConfig): Promise<string> {
     }
   })();
 
-  // Wait for completion
-  proc.exited.then((exitCode) => {
+  // Wait for completion: then attach terminal logs to the report JSON (runner writes to REPORTS_DIR)
+  proc.exited.then(async (exitCode) => {
     run.status = exitCode === 0 ? 'completed' : 'failed';
     run.exitCode = exitCode;
     run.endTime = new Date();
     run.process = null;
     broadcastStatus(runId, run.status, exitCode);
+
+    // After a short delay (let runner flush the report file), find newest report and embed run logs
+    if (run.logs.length > 0) {
+      setTimeout(async () => {
+        try {
+          const newestFilename = await findNewestReportFile(REPORTS_DIR);
+          if (newestFilename) {
+            const jsonPath = join(REPORTS_DIR, newestFilename);
+            const data = JSON.parse(await readFile(jsonPath, 'utf-8'));
+            data.metadata = data.metadata || {};
+            data.metadata.run_log = run.logs.join('\n');
+            await writeFile(jsonPath, JSON.stringify(data, null, 2));
+          }
+        } catch (e) {
+          console.error('Failed to attach run log to report:', e);
+        }
+      }, 800);
+    }
   });
 
   return runId;
+}
+
+/** Find the most recently modified report JSON file in the directory (by mtime). */
+async function findNewestReportFile(dir: string): Promise<string | null> {
+  try {
+    const files = await readdir(dir);
+    let newest: string | null = null;
+    let newestMtime = 0;
+    for (const file of files) {
+      if (!file.endsWith('.json') || !file.match(/^.+-report-.+\.json$/)) continue;
+      const filePath = join(dir, file);
+      const st = await stat(filePath);
+      if (st.mtimeMs > newestMtime) {
+        newestMtime = st.mtimeMs;
+        newest = file;
+      }
+    }
+    return newest;
+  } catch {
+    return null;
+  }
 }
 
 function stopTestRun(runId: string): boolean {
@@ -324,6 +365,7 @@ async function listReports(): Promise<Array<{
       configType: string;
       timestamp: string;
       size: number;
+      mtimeMs: number;
     }> = [];
 
     for (const file of files) {
@@ -341,14 +383,17 @@ async function listReports(): Promise<Array<{
           configType: match[1],
           timestamp: match[2].replace(/T/g, ' ').replace(/-/g, ':'),
           size: fileStat.size,
+          mtimeMs: fileStat.mtimeMs,
         });
       }
     }
 
-    // Sort by timestamp descending (newest first)
-    reports.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+    // Sort by file mtime descending (newest written first), so "just ran" always appears at top
+    reports.sort((a, b) => b.mtimeMs - a.mtimeMs);
+    console.log(`[listReports] ${reports.length} reports from ${REPORTS_DIR}`);
     return reports;
   } catch (e) {
+    console.error('[listReports] error:', e);
     return [];
   }
 }
@@ -380,6 +425,15 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
+
+// Prevent caching of report list/detail so "刷新" always gets latest (avoids stale empty list after a run)
+const noCacheHeaders = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate',
+  'Pragma': 'no-cache',
+};
+function jsonNoCache(data: unknown) {
+  return Response.json(data, { headers: { ...corsHeaders, ...noCacheHeaders } });
+}
 
 Bun.serve({
   port: PORT,
@@ -538,10 +592,15 @@ Bun.serve({
       });
     }
 
-    // List reports
+    // List reports (no-store so browser/proxy never cache; 刷新 always gets latest)
     if (path === '/reports' && req.method === 'GET') {
       const reports = await listReports();
-      return Response.json({ reports }, { headers: corsHeaders });
+      const url = new URL(req.url);
+      const debug = url.searchParams.get('debug') === '1';
+      const body = debug
+        ? { reports, _debug: { reportsDir: REPORTS_DIR, count: reports.length } }
+        : { reports };
+      return jsonNoCache(body);
     }
 
     // Get single report
@@ -551,7 +610,7 @@ Bun.serve({
       if (!report) {
         return Response.json({ error: 'Report not found' }, { status: 404, headers: corsHeaders });
       }
-      return Response.json(report, { headers: corsHeaders });
+      return jsonNoCache(report);
     }
 
     // 404

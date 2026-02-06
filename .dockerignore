@@ -9,3 +9,4 @@ dist
 *.md
 !README.md
 !doc/API_REFERENCE.md
+test/longmemeval-server/reports
