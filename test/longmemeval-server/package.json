@@ -1,0 +1,14 @@
+{
+  "name": "@chatkit-web/longmemeval-server",
+  "version": "1.0.0",
+  "description": "LongMemEval test server for ChatKit Web",
+  "type": "module",
+  "scripts": {
+    "start": "bun run server.ts",
+    "install-runner": "cd runner && bun install"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

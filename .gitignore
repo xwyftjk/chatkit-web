@@ -8,3 +8,7 @@ dist
 # Vite/TypeScript build info (generated)
 tsconfig.node.tsbuildinfo
 tsconfig.app.tsbuildinfo
+
+# LongMemEval large data files
+test/longmemeval-server/data/*.json
+test/longmemeval-server/reports/

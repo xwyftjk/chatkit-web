@@ -9,6 +9,7 @@ import { useEvents } from '../hooks/useEvents.js';
 import { listNotes, createNote, updateNote, deleteNote } from '../api/notes.js';
 import { listDocuments, uploadDocument, getDocument, deleteDocument } from '../api/documents.js';
 import { ensureMemory } from '../api/memory.js';
+import { generateUUID } from '../api/uuid.js';
 import type { Session, Message } from '../api/conversation.js';
 import type { InboxItem } from '../api/inbox.js';
 import type { Note } from '../api/notes.js';
@@ -394,7 +395,7 @@ export function Workspace() {
   }, [user_id]);
 
   const handleNewSession = useCallback(() => {
-    const id = crypto.randomUUID();
+    const id = generateUUID();
     setCurrentSessionId(id);
     setMessages([], false, 0);
   }, [setCurrentSessionId, setMessages]);
@@ -416,7 +417,7 @@ export function Workspace() {
     setSending(true);
     setStreamingContent('');
     appendMessage({
-      message_id: crypto.randomUUID(),
+      message_id: generateUUID(),
       role: 'user',
       content: text,
       timestamp: new Date().toISOString(),
@@ -432,7 +433,7 @@ export function Workspace() {
             role: m.role,
             content: m.content,
           })),
-          runId: crypto.randomUUID(),
+          runId: generateUUID(),
         },
       });
       const contentType = res.headers.get('content-type') ?? '';
@@ -450,7 +451,7 @@ export function Workspace() {
           (chunk) => appendStreamingContent(chunk),
           (full) => {
             appendMessage({
-              message_id: crypto.randomUUID(),
+              message_id: generateUUID(),
               role: 'assistant',
               content: full,
               timestamp: new Date().toISOString(),
@@ -469,7 +470,7 @@ export function Workspace() {
     } catch (e) {
       console.error('[Workspace] 发消息失败', e);
       appendMessage({
-        message_id: crypto.randomUUID(),
+        message_id: generateUUID(),
         role: 'assistant',
         content: e instanceof Error ? e.message : '发送失败，请重试。',
         timestamp: new Date().toISOString(),

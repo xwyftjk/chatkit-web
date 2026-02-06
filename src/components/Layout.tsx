@@ -54,6 +54,9 @@ export function Layout() {
               Temporal 工作流 (Schedules)
             </a>
           )}
+          <Link to="/longmemeval" className="text-slate-300 hover:text-white text-sm transition-colors">
+            记忆评估
+          </Link>
         </div>
         <div className="flex items-center gap-3">
           <Link to="/me" className="text-slate-300 hover:text-white text-sm transition-colors">我的</Link>

@@ -2,6 +2,8 @@
  * API client: base URL, X-Request-ID, Authorization, 401 refresh/redirect.
  */
 
+import { generateUUID } from './uuid.js';
+
 const getBaseUrl = (): string => {
   const u = import.meta.env.VITE_API_BASE_URL;
   return typeof u === 'string' && u.length > 0 ? u.replace(/\/$/, '') : '';
@@ -36,7 +38,7 @@ export async function refreshAccessToken(): Promise<boolean> {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Request-ID': crypto.randomUUID(),
+          'X-Request-ID': generateUUID(),
         },
         body: JSON.stringify({ refresh_token: refresh }),
       });
@@ -81,7 +83,7 @@ export async function fetchApi(
   const base = getBaseUrl();
   const url = path.startsWith('http') ? path : `${base}${path.startsWith('/') ? path : `/${path}`}`;
   const h: Record<string, string> = { ...(headers as Record<string, string>) };
-  if (!skipRequestId) h['X-Request-ID'] = crypto.randomUUID();
+  if (!skipRequestId) h['X-Request-ID'] = generateUUID();
   if (!skipAuth) {
     const token = getAccessToken();
     if (token) h['Authorization'] = `Bearer ${token}`;

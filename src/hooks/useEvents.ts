@@ -6,6 +6,7 @@
 import { useEffect, useRef } from 'react';
 import { createEventSource } from '../api/events.js';
 import { useConversationStore } from '../stores/conversation.js';
+import { generateUUID } from '../api/uuid.js';
 
 const CLEANUP_DELAY_MS = 120;
 
@@ -88,7 +89,7 @@ export function useEvents(
           const fullContent = fromEvent || fromStore;
           console.log('[useEvents] RUN_FINISHED/done', { fromStoreLen: fromStore.length, fromEventLen: fromEvent.length, fullContentLen: fullContent.length });
           appendMessage({
-            message_id: crypto.randomUUID(),
+            message_id: generateUUID(),
             role: 'assistant',
             content: fullContent,
             timestamp: new Date().toISOString(),

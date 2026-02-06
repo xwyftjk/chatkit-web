@@ -533,7 +533,22 @@ export function Me() {
   const handleCopyUserId = async () => {
     if (!user_id) return;
     try {
-      await navigator.clipboard.writeText(user_id);
+      // Try modern clipboard API first (requires HTTPS)
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(user_id);
+      } else {
+        // Fallback for non-secure contexts (HTTP)
+        const textArea = document.createElement('textarea');
+        textArea.value = user_id;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        textArea.style.top = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
       setCopyIdFeedback(true);
       setTimeout(() => setCopyIdFeedback(false), 1500);
     } catch (e) {
