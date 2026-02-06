@@ -5,6 +5,7 @@
  */
 
 import { getApiBase, getAccessToken, clearTokens } from './client.js';
+import { generateUUID } from './uuid.js';
 
 export type EventSourceCallback = (data: { type?: string; [k: string]: unknown }) => void;
 
@@ -30,7 +31,7 @@ export function createEventSource(
   const token = getAccessToken();
   const headers: Record<string, string> = {
     'Accept': 'text/event-stream',
-    'X-Request-ID': crypto.randomUUID(),
+    'X-Request-ID': generateUUID(),
   };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
