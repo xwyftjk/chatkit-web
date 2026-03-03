@@ -30,7 +30,17 @@ export async function uploadDocument(formData: FormData): Promise<DocumentItem> 
     headers: {}, // no Content-Type; browser sets multipart boundary
     body: formData,
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    const text = await res.text();
+    let msg = text;
+    try {
+      const json = JSON.parse(text) as { message?: string; error?: string };
+      msg = json.message || json.error || text;
+    } catch {
+      /* use raw text */
+    }
+    throw new Error(msg);
+  }
   return res.json() as Promise<DocumentItem>;
 }
 
