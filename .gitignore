@@ -12,3 +12,6 @@ tsconfig.app.tsbuildinfo
 # LongMemEval large data files
 test/longmemeval-server/data/*.json
 test/longmemeval-server/reports/
+
+# Build artifacts
+chatkit-web.tar.gz
